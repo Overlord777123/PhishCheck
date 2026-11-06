@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PhishCheck | Maximum Defense</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg-base: #05070a;
+    --bg-panel: rgba(18, 24, 38, 0.6);
+    --border-light: rgba(255, 255, 255, 0.08);
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
+    
+    --accent-blue: #3b82f6;
+    --accent-glow: rgba(59, 130, 246, 0.15);
+    
+    --color-safe: #10b981;
+    --color-warn: #f59e0b;
+    --color-bad: #ef4444;
+    --color-critical: #dc2626;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-base);
+    background-image: 
+      radial-gradient(circle at 15% 0%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
+      radial-gradient(circle at 85% 100%, rgba(239, 68, 68, 0.05) 0%, transparent 40%);
+    color: var(--text-main);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 40px 24px;
+    overflow-x: hidden;
+  }
+
+  .dashboard { width: 100%; max-width: 1200px; display: flex; flex-direction: column; gap: 32px; }
+
+  /* --- HEADER --- */
+  .header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 24px; border-bottom: 1px solid var(--border-light); animation: fadeIn 0.8s ease-out; }
+  .brand { display: flex; align-items: center; gap: 16px; }
+  
+  .brand-icon {
+    width: 48px; height: 48px;
+    background: linear-gradient(135deg, var(--accent-blue), #2563eb);
+    border-radius: 12px; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 20px var(--accent-glow); position: relative;
+  }
+  .brand-icon::after {
+    content: ''; position: absolute; inset: -4px; border-radius: 14px;
+    border: 1px solid var(--accent-blue); opacity: 0; animation: ping 2s infinite;
+  }
+  .brand-icon svg { width: 24px; height: 24px; color: #fff; }
+
+  h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.5px; }
+  .subtitle { font-size: 12px; font-family: 'JetBrains Mono', monospace; color: var(--accent-blue); letter-spacing: 1px; text-transform: uppercase; margin-top: 4px; }
+
+  .status-badge {
+    display: flex; align-items: center; gap: 8px; font-size: 12px; font-family: 'JetBrains Mono', monospace;
+    color: var(--color-critical); background: rgba(220, 38, 38, 0.1);
+    padding: 8px 16px; border: 1px solid rgba(220, 38, 38, 0.3); border-radius: 6px;
+  }
+  .status-dot { width: 8px; height: 8px; background: var(--color-critical); border-radius: 50%; box-shadow: 0 0 8px var(--color-critical); animation: pulse 1.5s infinite; }
+
+  /* --- INPUT SECTION --- */
+  .search-panel { background: var(--bg-panel); backdrop-filter: blur(12px); border: 1px solid var(--border-light); border-radius: 16px; padding: 32px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); animation: slideUp 0.6s ease-out; }
+  .label { font-size: 13px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; display: block; }
+
+  .input-group { display: flex; gap: 16px; position: relative; }
+  input { flex: 1; background: rgba(0, 0, 0, 0.4); border: 1px solid var(--border-light); color: var(--text-main); padding: 18px 24px; border-radius: 12px; font-size: 16px; font-family: 'JetBrains Mono', monospace; outline: none; transition: all 0.3s ease; }
+  input:focus { border-color: var(--accent-blue); box-shadow: 0 0 0 4px var(--accent-glow); }
+
+  .scan-btn { background: linear-gradient(135deg, var(--accent-blue), #2563eb); color: white; border: none; padding: 0 40px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; gap: 8px; }
+  .scan-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px var(--accent-glow); }
+  .scan-btn:active { transform: translateY(0); }
+  .scan-btn:disabled { opacity: 0.7; cursor: wait; }
+
+  .quick-tests { display: flex; gap: 12px; margin-top: 20px; align-items: center; flex-wrap: wrap; }
+  .qt-label { font-size: 12px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+  .qt-btn { background: rgba(255,255,255,0.03); border: 1px solid var(--border-light); color: var(--text-muted); padding: 6px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: all 0.2s; }
+  .qt-btn:hover { background: rgba(255,255,255,0.08); color: var(--text-main); border-color: var(--accent-blue); }
+
+  /* --- RESULTS SECTION --- */
+  .results-container { display: none; animation: fadeIn 0.5s ease-out; }
+  .results-container.active { display: block; }
+  .results-grid { display: grid; grid-template-columns: 350px 1fr; gap: 24px; }
+
+  /* Левая колонка */
+  .verdict-card { background: var(--bg-panel); border: 1px solid var(--border-light); border-radius: 16px; padding: 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+  .verdict-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--color-safe); box-shadow: 0 0 20px var(--color-safe); transition: all 0.4s ease; }
+  .verdict-card.warn::before { background: var(--color-warn); box-shadow: 0 0 20px var(--color-warn); }
+  .verdict-card.bad::before { background: var(--color-bad); box-shadow: 0 0 20px var(--color-bad); }
+  .verdict-card.critical::before { background: var(--color-critical); box-shadow: 0 0 20px var(--color-critical); }
+
+  /* Круговой прогресс (ИСПРАВЛЕН) */
+  .gauge-wrapper { position: relative; width: 200px; height: 200px; margin-bottom: 24px; }
+  .gauge-svg { transform: rotate(-90deg); width: 100%; height: 100%; }
+  
+  .gauge-bg { fill: none; stroke: rgba(255,255,255,0.04); stroke-width: 12; }
+  
+  .gauge-fill { 
+    fill: none; 
+    stroke: var(--color-safe); 
+    stroke-width: 12; 
+    stroke-linecap: round;
+    /* Окружность при r=54 примерно равна 339.29 */
+    stroke-dasharray: 339.29;
+    stroke-dashoffset: 339.29;
+    transition: stroke-dashoffset 1.5s cubic-bezier(0.2, 0.8, 0.2, 1), stroke 0.4s ease;
+  }
+  
+  .verdict-card.warn .gauge-fill { stroke: var(--color-warn); }
+  .verdict-card.bad .gauge-fill { stroke: var(--color-bad); }
+  .verdict-card.critical .gauge-fill { stroke: var(--color-critical); }
+
+  .gauge-text { 
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+    text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .gauge-score { font-size: 52px; font-weight: 700; font-family: 'JetBrains Mono', monospace; line-height: 1; text-shadow: 0 0 20px rgba(255,255,255,0.2); }
+  .gauge-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 2px; margin-top: 8px; font-weight: 600; }
+
+  .v-title { font-size: 22px; font-weight: 600; margin-bottom: 8px; text-align: center; }
+  .v-desc { font-size: 14px; color: var(--text-muted); text-align: center; line-height: 1.5; }
+
+  /* Правая колонка */
+  .details-card { background: var(--bg-panel); border: 1px solid var(--border-light); border-radius: 16px; padding: 32px; display: flex; flex-direction: column; gap: 24px; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .data-table th { text-align: left; padding: 12px 0; color: var(--text-muted); font-weight: 500; border-bottom: 1px solid rgba(255,255,255,0.05); width: 140px; }
+  .data-table td { padding: 12px 0; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid rgba(255,255,255,0.05); word-break: break-all; }
+  .data-table tr:last-child th, .data-table tr:last-child td { border-bottom: none; }
+  
+  .db-match-yes { color: var(--color-bad); font-weight: 600; text-shadow: 0 0 10px rgba(239, 68, 68, 0.3); }
+  .db-match-no { color: var(--color-safe); }
+
+  .logs-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .logs-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); }
+  
+  /* Кнопка скачивания отчета (СДЕЛАНА ЗАМЕТНОЙ) */
+  .export-btn {
+    background: rgba(59, 130, 246, 0.1); 
+    border: 1px solid var(--accent-blue); 
+    color: var(--accent-blue);
+    padding: 8px 16px; 
+    border-radius: 8px; 
+    font-size: 13px; 
+    font-weight: 500;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer; 
+    transition: all 0.2s; 
+    display: none; 
+    align-items: center; 
+    gap: 8px;
+  }
+  .export-btn:hover { background: var(--accent-blue); color: #fff; box-shadow: 0 4px 12px var(--accent-glow); }
+  .export-btn svg { width: 16px; height: 16px; }
+
+  .log-console { background: #090b10; border: 1px solid var(--border-light); border-radius: 8px; padding: 16px; font-family: 'JetBrains Mono', monospace; font-size: 13px; display: flex; flex-direction: column; gap: 10px; max-height: 400px; overflow-y: auto; }
+  .log-console::-webkit-scrollbar { width: 6px; }
+  .log-console::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+  .log-entry { display: flex; gap: 12px; align-items: flex-start; line-height: 1.5; opacity: 0; animation: fadeInLog 0.3s forwards; }
+  .log-time { color: #475569; flex-shrink: 0; }
+  .log-icon svg { width: 16px; height: 16px; margin-top: 2px; }
+  
+  .log-entry.high .log-icon { color: var(--color-bad); }
+  .log-entry.critical .log-icon { color: var(--color-critical); }
+  .log-entry.medium .log-icon { color: var(--color-warn); }
+  .log-entry.low .log-icon { color: var(--accent-blue); }
+  .log-entry.info .log-icon { color: var(--color-safe); }
+  
+  .log-entry.high .log-msg { color: #fca5a5; }
+  .log-entry.critical .log-msg { color: #fca5a5; font-weight: bold; }
+  .log-entry.medium .log-msg { color: #fcd34d; }
+  .log-entry.low .log-msg { color: #93c5fd; }
+  .log-entry.info .log-msg { color: #6ee7b7; }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  @keyframes fadeInLog { to { opacity: 1; } }
+  @keyframes ping { 75%, 100% { transform: scale(1.2); opacity: 0; } }
+
+  @media (max-width: 900px) {
+    .results-grid { grid-template-columns: 1fr; }
+    .input-group { flex-direction: column; }
+    .scan-btn { padding: 18px; justify-content: center; }
+  }
+</style>
+</head>
+<body>
+
+<div class="dashboard">
+  <header class="header">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          <path d="M9 12l2 2 4-4"></path>
+        </svg>
+      </div>
+      <div>
+        <h1>PhishCheck</h1>
+        <div class="subtitle">Maximum Defense Protocol</div>
+      </div>
+    </div>
+    <div class="status-badge">
+      <div class="status-dot"></div>
+      <span>Deep Scan Engine: Active</span>
+    </div>
+  </header>
+
+  <section class="search-panel">
+    <label class="label">Target URL Inspection</label>
+    <div class="input-group">
+      <input id="url-input" type="text" placeholder="https://example.com/login" autocomplete="off" spellcheck="false">
+      <button class="scan-btn" id="scan-btn">
+        <span>Deep Analyze</span>
+      </button>
+    </div>
+    <div class="quick-tests">
+      <span class="qt-label">Test Vectors:</span>
+      <button class="qt-btn" data-url="https://google.com">Safe Target</button>
+      <button class="qt-btn" data-url="http://sberbank-online.tk/auth">Known Blacklist</button>
+      <button class="qt-btn" data-url="http://goog1e.com.verify-login.xyz">Typosquatting</button>
+      <button class="qt-btn" data-url="https://paypal.com.secure.update-login.net/account">Deep Subdomain</button>
+      <button class="qt-btn" data-url="http://192.168.1.1:8080/invoice.pdf.exe">Dangerous Payload</button>
+    </div>
+  </section>
+
+  <section class="results-container" id="results-container">
+    <div class="results-grid">
+      
+      <div class="verdict-card" id="verdict-card">
+        <div class="gauge-wrapper">
+          <!-- ИСПРАВЛЕННЫЙ SVG -->
+          <svg class="gauge-svg" viewBox="0 0 120 120">
+            <!-- Фоновый круг -->
+            <circle class="gauge-bg" cx="60" cy="60" r="54"></circle>
+            <!-- Заполняющийся круг -->
+            <circle class="gauge-fill" id="gauge-fill" cx="60" cy="60" r="54"></circle>
+          </svg>
+          <div class="gauge-text">
+            <div class="gauge-score" id="v-score">0</div>
+            <div class="gauge-label">RISK SCORE</div>
+          </div>
+        </div>
+        <div class="v-title" id="v-title">Status</div>
+        <div class="v-desc" id="v-desc">Awaiting analysis data...</div>
+      </div>
+
+      <div class="details-card">
+        <div>
+          <table class="data-table">
+            <tr>
+              <th>Target Host</th>
+              <td id="detail-host">-</td>
+            </tr>
+            <tr>
+              <th>Protocol</th>
+              <td id="detail-proto">-</td>
+            </tr>
+            <tr>
+              <th>DB Check</th>
+              <td id="detail-db">-</td>
+            </tr>
+          </table>
+        </div>
+
+        <div>
+          <div class="logs-header">
+            <div class="logs-title">Analysis Logs</div>
+            <!-- Кнопка скачивания -->
+            <button class="export-btn" id="export-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Download Report
+            </button>
+          </div>
+          <div class="log-console" id="log-list"></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+</div>
+
+<script>
+/* ============================================================
+   База Данных
+   ============================================================ */
+const SCAM_DATABASE = [
+  "sberbank-online.tk", "paypal-verify.xyz", "steamcommunity-gift.ru", 
+  "gosuslugi-vhod.com", "binance-bonus.net", "vk-com-login.ru", 
+  "apple-id-support.info", "netflix-payment-update.top", "telegram-premium.icu",
+  "dns-update-server.com", "microsoft-support-alert.net", "apple-icloud-locked.com"
+];
+
+const TARGET_BRANDS = ["google", "youtube", "facebook", "amazon", "wikipedia", "twitter", "instagram", "linkedin", "netflix", "paypal", "apple", "microsoft", "steam", "binance", "sberbank", "tinkoff", "vtb", "gosuslugi", "vk"];
+const SHORTENERS = new Set(['bit.ly','tinyurl.com','goo.gl','t.co','ow.ly','is.gd','clck.ru','rb.gy','cutt.ly']);
+const RISKY_TLD = { tk:'high', ml:'high', ga:'high', cf:'high', gq:'high', xyz:'medium', top:'medium', info:'medium', icu:'medium', work:'medium', click:'high', link:'high' };
+const KEYWORDS = ['login','signin','verify','secure','account','update','confirm','password','wallet','bank','payment','auth','invoice','recovery','unlock','support','billing','admin','webscr'];
+const BAD_EXT = ['.exe','.apk','.bat','.cmd','.msi','.vbs','.ps1','.scr','.pif'];
+
+const SVG_ICONS = {
+  high: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>`,
+  critical: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 22h20L12 2z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`,
+  medium: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`,
+  low: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`,
+  info: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`
+};
+
+/* ============================================================
+   Вспомогательные алгоритмы
+   ============================================================ */
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n; if (!n) return m;
+  let prev = Array.from({ length: n + 1 }, (_, i) => i);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[n];
+}
+
+/* ============================================================
+   Анализ (Deep Scan)
+   ============================================================ */
+function analyze(inputUrl) {
+  const raw = inputUrl.trim();
+  if (!raw) return { error: "Input is empty" };
+
+  const badScheme = raw.match(/^(javascript|data|vbscript|file):/i);
+  if (badScheme) return { raw, host: '—', proto: badScheme[1], score: 100, verdict: 'critical', dbMatch: false, findings: [{ level: 'critical', text: `Dangerous scheme detected: ${badScheme[1]}:` }] };
+
+  const hadScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw);
+  let u;
+  try { u = new URL(hadScheme ? raw : 'https://' + raw); } catch (e) { return { error: "Invalid URL structure" }; }
+
+  const proto = u.protocol.replace(':', '').toLowerCase();
+  const host = u.hostname.toLowerCase().replace(/\.$/, '');
+  const findings = [];
+  const add = (level, text) => findings.push({ level, text });
+  let dbMatch = false;
+
+  if (SCAM_DATABASE.includes(host)) {
+    dbMatch = true;
+    add('critical', 'CRITICAL: Domain found in Known Malicious Database.');
+  }
+
+  if (proto === 'http') add('medium', 'Insecure protocol (HTTP). Vulnerable to MITM attacks.');
+  if (u.port && !['80', '443', ''].includes(u.port)) add('medium', `Non-standard port detected (:${u.port}). Could indicate a backdoor.`);
+
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) add('high', 'Raw IP address used. Bypasses domain reputation.');
+  if (host.includes('xn--')) add('high', 'Punycode characters detected. Potential IDN homograph attack.');
+  if (u.username || u.password) add('critical', 'Credential masking via "@" symbol. Real destination is after the @.');
+
+  const dots = host.split('.').length - 1;
+  if (dots >= 4) add('high', `Excessive subdomains (${dots + 1} levels). Suspected subdomain takeover or cloaking.`);
+  else if (dots === 3) add('low', 'High number of subdomains.');
+
+  const domainParts = host.split('.');
+  const mainDomain = domainParts.length > 1 ? domainParts[domainParts.length - 2] : domainParts[0];
+  let isBrandSpoof = false;
+  
+  for (const brand of TARGET_BRANDS) {
+    if (mainDomain.includes(brand) && mainDomain !== brand) {
+      if (!host.endsWith(brand + '.ru') && !host.endsWith(brand + '.com')) {
+        add('high', `Brand impersonation: Contains name "${brand}".`);
+        isBrandSpoof = true;
+      }
+    }
+    if (!isBrandSpoof && mainDomain !== brand) {
+      const dist = levenshtein(mainDomain, brand);
+      if (dist > 0 && dist <= 2) {
+        add('critical', `Typosquatting detected! "${mainDomain}" is 1-2 chars away from "${brand}".`);
+        isBrandSpoof = true;
+      }
+    }
+  }
+
+  const encodedCount = (raw.match(/%[0-9a-f]{2}/gi) || []).length;
+  if (encodedCount > 3) add('medium', `Heavy URL encoding (${encodedCount} sequences). Obfuscation suspected.`);
+  if (u.pathname.includes('//')) add('medium', 'Double slash in path. Malformed URL structure.');
+
+  const pathLower = u.pathname.toLowerCase();
+  const doubleExtMatch = pathLower.match(/\.(pdf|doc|jpg|png)\.(exe|bat|apk|msi|vbs|scr)$/i);
+  if (doubleExtMatch) {
+    add('critical', `Double extension attack detected (${doubleExtMatch[0]}). File is executable!`);
+  } else {
+    const badFile = BAD_EXT.find(ext => pathLower.endsWith(ext));
+    if (badFile) add('high', `Direct executable download detected (${badFile}).`);
+  }
+
+  const lowerUrl = (host + u.pathname + u.search).toLowerCase();
+  const hits = KEYWORDS.filter(k => lowerUrl.includes(k));
+  if (hits.length >= 3) add('high', `Multiple phishing keywords found: [${hits.slice(0, 4).join(', ')}].`);
+  else if (hits.length >= 1) add('medium', `Suspicious keyword detected: "${hits[0]}".`);
+
+  const tld = host.split('.').pop();
+  if (RISKY_TLD[tld]) add(RISKY_TLD[tld], `High-risk Top Level Domain: .${tld}`);
+
+  if (!findings.length) add('info', 'Target passed all deep heuristic checks.');
+
+  const weights = { critical: 100, high: 40, medium: 15, low: 5, info: 0 };
+  let score = findings.reduce((s, f) => s + (weights[f.level] || 0), 0);
+  if (dbMatch || findings.some(f => f.level === 'critical')) score = 100;
+  score = Math.min(100, score);
+
+  let verdict = 'safe';
+  if (score >= 85) verdict = 'critical';
+  else if (score >= 50) verdict = 'bad';
+  else if (score >= 15) verdict = 'warn';
+
+  return { raw, host, proto, score, verdict, findings, dbMatch };
+}
+
+/* ============================================================
+   Рендер UI
+   ============================================================ */
+const ui = {
+  container: document.getElementById('results-container'),
+  card: document.getElementById('verdict-card'),
+  score: document.getElementById('v-score'),
+  gauge: document.getElementById('gauge-fill'),
+  title: document.getElementById('v-title'),
+  desc: document.getElementById('v-desc'),
+  host: document.getElementById('detail-host'),
+  proto: document.getElementById('detail-proto'),
+  db: document.getElementById('detail-db'),
+  logs: document.getElementById('log-list'),
+  exportBtn: document.getElementById('export-btn'),
+  btn: document.getElementById('scan-btn'),
+  input: document.getElementById('url-input')
+};
+
+function render(res) {
+  ui.container.classList.add('active');
+  
+  if (res.error) {
+    ui.card.className = 'verdict-card warn';
+    ui.title.textContent = 'Error';
+    ui.desc.textContent = res.error;
+    return;
+  }
+
+  ui.card.className = `verdict-card ${res.verdict}`;
+  
+  if (res.verdict === 'safe') {
+    ui.title.textContent = 'SECURE';
+    ui.desc.textContent = 'Target passed all deep heuristic checks.';
+  } else if (res.verdict === 'warn') {
+    ui.title.textContent = 'SUSPICIOUS';
+    ui.desc.textContent = 'Anomalies detected. Proceed with caution.';
+  } else if (res.verdict === 'bad') {
+    ui.title.textContent = 'MALICIOUS';
+    ui.desc.textContent = 'High confidence threat. Do not proceed.';
+  } else if (res.verdict === 'critical') {
+    ui.title.textContent = 'CRITICAL THREAT';
+    ui.desc.textContent = 'Maximum risk detected. Connection must be blocked.';
+  }
+
+  // Анимация цифр
+  let currentScore = parseInt(ui.score.textContent) || 0;
+  const targetScore = res.score;
+  const duration = 1000;
+  const steps = 30;
+  const stepTime = duration / steps;
+  const increment = (targetScore - currentScore) / steps;
+  
+  let step = 0;
+  const timer = setInterval(() => {
+    currentScore += increment;
+    if (step >= steps) {
+      ui.score.textContent = targetScore;
+      clearInterval(timer);
+    } else {
+      ui.score.textContent = Math.round(currentScore);
+    }
+    step++;
+  }, stepTime);
+
+  // Анимация круга (полная длина окружности 339.29)
+  setTimeout(() => {
+    const offset = 339.29 - (339.29 * res.score / 100);
+    ui.gauge.style.strokeDashoffset = offset;
+  }, 100);
+
+  ui.host.textContent = res.host;
+  ui.proto.textContent = res.proto.toUpperCase();
+  
+  if (res.dbMatch) {
+    ui.db.innerHTML = '<span class="db-match-yes">BLACKLIST MATCH</span>';
+  } else {
+    ui.db.innerHTML = '<span class="db-match-no">CLEAN</span>';
+  }
+
+  const now = new Date();
+  const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+  
+  ui.logs.innerHTML = res.findings.map((f, i) => `
+    <div class="log-entry ${f.level}" style="animation-delay: ${i * 0.1}s">
+      <span class="log-time">[${timeStr}]</span>
+      <div class="log-icon">${SVG_ICONS[f.level] || SVG_ICONS.info}</div>
+      <div class="log-msg">${f.text}</div>
+    </div>
+  `).join('');
+
+  // Показываем кнопку скачивания (display: flex)
+  ui.exportBtn.style.display = 'flex';
+}
+
+function triggerScan() {
+  const val = ui.input.value;
+  if (!val) return;
+
+  const originalText = ui.btn.innerHTML;
+  ui.btn.disabled = true;
+  ui.btn.innerHTML = '<span>Scanning...</span>';
+  ui.container.classList.remove('active');
+  ui.exportBtn.style.display = 'none';
+
+  setTimeout(() => {
+    const result = analyze(val);
+    render(result);
+    ui.btn.disabled = false;
+    ui.btn.innerHTML = originalText;
+  }, 800);
+}
+
+/* ============================================================
+   Экспорт отчета
+   ============================================================ */
+ui.exportBtn.addEventListener('click', () => {
+  const host = ui.host.textContent;
+  const proto = ui.proto.textContent;
+  const score = ui.score.textContent;
+  const verdict = ui.title.textContent;
+  const dbCheck = ui.db.textContent;
+  
+  let logsText = '';
+  document.querySelectorAll('.log-entry').forEach(entry => {
+    const time = entry.querySelector('.log-time').textContent;
+    const msg = entry.querySelector('.log-msg').textContent;
+    const level = entry.className.replace('log-entry ', '').toUpperCase();
+    logsText += `${time} [${level}] ${msg}\n`;
+  });
+
+  const reportContent = `
+==================================================
+PHISHCHECK THREAT INTELLIGENCE REPORT
+==================================================
+Generated At : ${new Date().toUTCString()}
+Target Host  : ${host}
+Protocol     : ${proto}
+Threat Level : ${verdict}
+Risk Score   : ${score} / 100
+DB Check     : ${dbCheck}
+
+--- ANALYSIS LOGS ---
+${logsText}
+==================================================
+END OF REPORT
+  `.trim();
+
+  const blob = new Blob([reportContent], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `phishcheck_report_${host || 'unknown'}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+ui.btn.addEventListener('click', triggerScan);
+ui.input.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') triggerScan();
+});
+
+document.querySelectorAll('.qt-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    ui.input.value = btn.dataset.url;
+    triggerScan();
+  });
+});
+</script>
+</body>
+</html>
